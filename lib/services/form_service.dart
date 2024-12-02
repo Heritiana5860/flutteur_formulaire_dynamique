@@ -12,7 +12,7 @@ class DynamicFormService {
       print('Response status: ${response.statusCode}');
       print('Response body: ${response.body}');
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final List<dynamic> formsJson = json.decode(response.body);
 
         return formsJson

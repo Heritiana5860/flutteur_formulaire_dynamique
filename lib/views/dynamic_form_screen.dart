@@ -35,16 +35,30 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
           ),
         );
       case 'dropdown':
-        return DropdownButtonFormField<String>(
-          decoration: InputDecoration(labelText: field.name),
-          items: field.options
-              ?.map((option) =>
-                  DropdownMenuItem(value: option, child: Text(option)))
-              .toList(),
-          onChanged: (value) => formData[field.name] = value,
-          validator: field.required
-              ? (value) => value == null ? 'Ce champ est requis' : null
-              : null,
+        return Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: DropdownButtonFormField<String>(
+            decoration: InputDecoration(
+              labelText: field.name,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4.0),
+              ),
+            ),
+            items: field.options
+                ?.map(
+                  (option) => DropdownMenuItem(
+                    value: option.toString(),
+                    child: Text(
+                      option.toString(),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => formData[field.name] = value,
+            validator: field.required
+                ? (value) => value == null ? 'Ce champ est requis' : null
+                : null,
+          ),
         );
       default:
         return Container();

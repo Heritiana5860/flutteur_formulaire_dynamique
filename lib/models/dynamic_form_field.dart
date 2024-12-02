@@ -2,7 +2,7 @@ class DynamicFormField {
   final String name;
   final String type;
   final bool required;
-  final List<String>? options;
+  final List<dynamic>? options;
 
   DynamicFormField({
     required this.name,
