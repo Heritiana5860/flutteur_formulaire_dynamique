@@ -6,11 +6,11 @@ import 'package:http/http.dart' as http;
 
 class DynamicFormService {
   Future<List<DynamicForm>> fetchForms() async {
-    final uri = Uri.parse('http://10.85.5.165:8000/api/forms/');
+    final uri = Uri.parse('http://10.85.5.57:8000/api/forms/');
     try {
       final response = await http.get(uri);
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final List<dynamic> formsJson = json.decode(response.body);
@@ -31,7 +31,7 @@ class DynamicFormService {
       }
     } catch (e) {
       debugPrint("Erreur lors de la récupération des formulaires : $e");
-      return []; 
+      return [];
     }
   }
 }
