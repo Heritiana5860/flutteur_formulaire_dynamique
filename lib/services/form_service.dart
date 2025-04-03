@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:formulaire_dynamique/models/dynamic_form.dart';
 import 'package:formulaire_dynamique/models/dynamic_form_field.dart';
 import 'package:http/http.dart' as http;
 
 class DynamicFormService {
   Future<List<DynamicForm>> fetchForms() async {
-    final uri = Uri.parse('http://10.85.5.57:8000/api/forms/');
+    final uri = Uri.parse(dotenv.env['URL']!);
     try {
       final response = await http.get(uri);
       debugPrint('Response status: ${response.statusCode}');
