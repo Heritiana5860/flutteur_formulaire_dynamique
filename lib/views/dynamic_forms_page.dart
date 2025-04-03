@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:formulaire_dynamique/composants/my_text.dart';
 import 'package:formulaire_dynamique/services/form_service.dart';
@@ -12,11 +13,42 @@ class DynamicFormsPage extends StatefulWidget {
 
 class _DynamicFormsPageState extends State<DynamicFormsPage> {
   late Future<List<dynamic>> _forms;
+  late Timer _timer;
+  List<dynamic> _cachedForms = [];
 
   @override
   void initState() {
     super.initState();
     _forms = DynamicFormService().fetchForms();
+    startAutoFetch();
+  }
+
+  void startAutoFetch() {
+    _timer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      fetchAndUpdateForms();
+    });
+  }
+
+  Future<void> fetchAndUpdateForms() async {
+    try {
+      List<dynamic> newForms = await DynamicFormService().fetchForms();
+
+      // Vérifier si les nouvelles données sont différentes avant de rafraîchir
+      if (newForms.toString() != _cachedForms.toString()) {
+        setState(() {
+          _forms = Future.value(newForms);
+          _cachedForms = newForms;
+        });
+      }
+    } catch (e) {
+      debugPrint("Erreur de chargement des formulaires : $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
   }
 
   @override
@@ -34,9 +66,7 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {
-              _forms = DynamicFormService().fetchForms();
-            }),
+            onPressed: fetchAndUpdateForms,
           ),
         ],
       ),
@@ -71,9 +101,7 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () => setState(() {
-                        _forms = DynamicFormService().fetchForms();
-                      }),
+                      onPressed: fetchAndUpdateForms,
                       child: const MyText(text: 'Réessayer'),
                     ),
                   ],
@@ -87,9 +115,7 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
             }
             return RefreshIndicator(
               onRefresh: () async {
-                setState(() {
-                  _forms = DynamicFormService().fetchForms();
-                });
+                await fetchAndUpdateForms();
               },
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
