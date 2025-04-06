@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:formulaire_dynamique/composants/my_text.dart';
 import 'package:formulaire_dynamique/services/form_service.dart';
-import 'package:formulaire_dynamique/views/dynamic_form_screen.dart';
+import '../services/form_sync_service.dart';
+import 'dynamic_form_screen.dart';
 
 class DynamicFormsPage extends StatefulWidget {
   const DynamicFormsPage({super.key});
@@ -15,11 +17,15 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
   late Future<List<dynamic>> _forms;
   late Timer _timer;
   List<dynamic> _cachedForms = [];
+  final FormSyncService _syncService = FormSyncService();
+  bool _isSyncing = false;
+  int _pendingCount = 0;
 
   @override
   void initState() {
     super.initState();
     _forms = DynamicFormService().fetchForms();
+    _checkPendingSubmissions();
     startAutoFetch();
   }
 
@@ -29,11 +35,18 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
     });
   }
 
+  Future<void> _checkPendingSubmissions() async {
+    int count = await _syncService.getPendingSubmissionsCount();
+    setState(() {
+      _pendingCount = count;
+    });
+  }
+
   Future<void> fetchAndUpdateForms() async {
     try {
       List<dynamic> newForms = await DynamicFormService().fetchForms();
 
-      // Vérifier si les nouvelles données sont différentes avant de rafraîchir
+      // Verify if new data is different before refreshing
       if (newForms.toString() != _cachedForms.toString()) {
         setState(() {
           _forms = Future.value(newForms);
@@ -41,7 +54,48 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
         });
       }
     } catch (e) {
-      debugPrint("Erreur de chargement des formulaires : $e");
+      debugPrint("Error loading forms: $e");
+    }
+  }
+
+  Future<void> syncAllPendingForms() async {
+    bool isConnected = await _checkConnectivity();
+    if (!isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No internet connection available'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      Map<String, dynamic> result =
+          await _syncService.syncAllPendingSubmissions();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message']),
+          backgroundColor: result['success'] ? Colors.green : Colors.orange,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      await _checkPendingSubmissions();
+      setState(() {
+        _isSyncing = false;
+      });
     }
   }
 
@@ -49,6 +103,11 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
   void dispose() {
     _timer.cancel();
     super.dispose();
+  }
+
+  Future<bool> _checkConnectivity() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
   }
 
   @override
@@ -64,9 +123,73 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
         backgroundColor: Colors.green.shade700,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: fetchAndUpdateForms,
+          if (_pendingCount > 0)
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.sync),
+                  onPressed: _isSyncing ? null : syncAllPendingForms,
+                ),
+                if (_isSyncing)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _pendingCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == "Quitter") {
+                Navigator.pop(context);
+              } else if (value == "Synchronisation") {
+                await syncAllPendingForms();
+              } else if (value == "Actualisation") {
+                fetchAndUpdateForms();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: "Synchronisation",
+                child: Text("Synchronisation"),
+              ),
+              const PopupMenuItem(
+                value: "Actualisation",
+                child: Text("Actualisation"),
+              ),
+              const PopupMenuItem(
+                value: "Quitter",
+                child: Text("Quitter"),
+              ),
+            ],
+            icon: const Icon(Icons.more_vert),
           ),
         ],
       ),
@@ -125,14 +248,19 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
-                        border: Border.all(color: Colors.yellow[600]!)),
+                        border: Border.all(color: Colors.yellow[600]!),
+                        borderRadius: BorderRadius.circular(16)),
                     child: InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => DynamicFormScreen(form: form),
-                        ),
-                      ),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DynamicFormScreen(form: form),
+                          ),
+                        );
+                        // Check for pending submissions after returning from form screen
+                        _checkPendingSubmissions();
+                      },
                       borderRadius: BorderRadius.circular(16),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -185,6 +313,17 @@ class _DynamicFormsPageState extends State<DynamicFormsPage> {
           },
         ),
       ),
+      floatingActionButton: _pendingCount > 0
+          ? FloatingActionButton(
+              onPressed: _isSyncing ? null : syncAllPendingForms,
+              backgroundColor: Colors.green[800],
+              child: _isSyncing
+                  ? const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    )
+                  : const Icon(Icons.sync, color: Colors.white),
+            )
+          : null,
     );
   }
 }

@@ -10,14 +10,13 @@ class DynamicFormService {
     final uri = Uri.parse(dotenv.env['URL']!);
     try {
       final response = await http.get(uri);
-      debugPrint('Response status: ${response.statusCode}');
-      debugPrint('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final List<dynamic> formsJson = json.decode(response.body);
 
         return formsJson
             .map((formJson) => DynamicForm(
+                id: formJson['id'],
                 name: formJson['name'],
                 fields: (formJson['fields'] as List)
                     .map((fieldJson) => DynamicFormField(

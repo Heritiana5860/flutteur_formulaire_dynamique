@@ -9,8 +9,10 @@ import 'package:formulaire_dynamique/composants/slider_field.dart';
 import 'package:formulaire_dynamique/composants/textarea_field.dart';
 import 'package:formulaire_dynamique/composants/textfield.dart';
 import 'package:formulaire_dynamique/composants/my_text.dart';
+import 'package:formulaire_dynamique/db_helper/database_helper.dart';
 import 'package:formulaire_dynamique/models/dynamic_form.dart';
 import 'package:formulaire_dynamique/models/dynamic_form_field.dart';
+import 'package:formulaire_dynamique/models/form_submission.dart';
 
 class DynamicFormScreen extends StatefulWidget {
   final DynamicForm form;
@@ -24,6 +26,8 @@ class DynamicFormScreen extends StatefulWidget {
 class _DynamicFormScreenState extends State<DynamicFormScreen> {
   final _formKey = GlobalKey<FormState>();
   Map<String, dynamic> formData = {};
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  bool _isSubmitting = false;
 
   Widget _buildFormField(DynamicFormField field) {
     switch (field.type) {
@@ -88,10 +92,49 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
     if (_formKey.currentState?.validate() ?? false) {
       _formKey.currentState?.save();
 
-      // Ajouter ici la logique pour envoyer les données au serveur
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Formulaire soumis avec succès')),
-      );
+      setState(() {
+        _isSubmitting = true;
+      });
+
+      try {
+        // Create form submission
+        final submission = FormSubmission(
+          formId: widget.form.id ?? 0,
+          data: formData,
+          submittedAt: DateTime.now(),
+        );
+
+        // 1. Save to local SQLite database
+        final id = await _dbHelper.insertFormSubmission(submission);
+        debugPrint(
+            "Données du formulaire sauvegardées localement avec ID: $id");
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Formulaire sauvegardé localement'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        // Reset form after successful submission if needed
+        setState(() {
+          formData = {};
+        });
+
+        Navigator.pop(context);
+      } catch (e) {
+        debugPrint("Erreur lors de la sauvegarde: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Erreur lors de la sauvegarde du formulaire'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } finally {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -113,22 +156,27 @@ class _DynamicFormScreenState extends State<DynamicFormScreen> {
             ...widget.form.fields.map(_buildFormField),
             const SizedBox(height: 20),
             GestureDetector(
-              onTap: _submitForm,
+              onTap: _isSubmitting ? null : _submitForm,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                     vertical: 12.0, horizontal: 12.0),
                 margin: const EdgeInsets.symmetric(horizontal: 12.0),
                 decoration: BoxDecoration(
-                    color: Colors.green.shade700,
+                    color: _isSubmitting ? Colors.grey : Colors.green.shade700,
                     borderRadius: BorderRadius.circular(8.0),
                     border: Border.all(color: Colors.yellow[600]!, width: 1.5)),
-                child: const Center(
-                  child: MyText(
-                    text: "Sauvegarder",
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
+                child: Center(
+                  child: _isSubmitting
+                      ? const CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        )
+                      : const MyText(
+                          text: "Sauvegarder",
+                          fontSize: 16.0,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
                 ),
               ),
             )

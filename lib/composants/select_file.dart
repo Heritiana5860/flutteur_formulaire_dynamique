@@ -2,7 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:formulaire_dynamique/composants/my_text.dart';
 import 'package:formulaire_dynamique/models/dynamic_form_field.dart';
-import 'package:open_file/open_file.dart';
+import 'package:open_file_plus/open_file_plus.dart';
 
 class SelectFile extends StatefulWidget {
   const SelectFile({super.key, required this.formData, required this.field});
@@ -131,6 +131,10 @@ class _SelectFileState extends State<SelectFile> {
   }
 
   void openFile(PlatformFile file) {
-    OpenFile.open(file.path!);
+    if (file.path != null) {
+      OpenFile.open(file.path!);
+    } else {
+      debugPrint("Le chemin du fichier est null !");
+    }
   }
 }
